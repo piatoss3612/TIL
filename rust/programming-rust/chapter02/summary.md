@@ -177,3 +177,104 @@ The greatest common divisor of [5, 10, 15, 20] is 5
 ```
 
 ---
+
+## 웹 서비스 만들기
+
+### 크레이트 불러오기
+
+```toml
+[package]
+name = "actix-gcd"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "1.0.8"
+serde = { version = "1.0", features = ["derive"] }
+```
+
+- dependencies에 필요한 크레이트를 추가
+- actix-web: 웹 서버 프레임워크
+- serde: 직렬화/역직렬화 라이브러리 (옵션 기능을 사용하기 위해 features 추가)
+
+- `cargo build` 또는 `cargo run`을 실행하면 자동으로 크레이트를 다운로드 받음
+
+### 웹 서버 구현
+
+```rust
+use actix_web::{web, App, HttpResponse, HttpServer};
+
+#[actix_web::main]
+async fn main() {
+    let server = HttpServer::new(|| {
+        App::new()
+            .route("/", web::get().to(get_index))
+            .route("/gcd", web::post().to(post_gcd))
+    });
+
+    println!("Starting server on http://localhost:3000");
+
+    server
+        .bind("127.0.0.1:3000")
+        .expect("error binding server to address")
+        .run()
+        .await
+        .expect("error running server");
+}
+
+async fn get_index() -> HttpResponse {
+    HttpResponse::Ok().content_type("text/html").body(
+        r#"
+        <title>GCD Calculator</title>
+        <form action="/gcd" method="post">
+            <input type="text" name="n"/>
+            <input type="text" name="m"/>
+            <button type="submit">Compute GCD</button>
+        </form>
+        "#,
+    )
+}
+
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct GcdParameters {
+    n: u64,
+    m: u64,
+}
+
+async fn post_gcd(form: web::Form<GcdParameters>) -> HttpResponse {
+    if form.n == 0 || form.m == 0 {
+        return HttpResponse::BadRequest()
+            .content_type("text/html")
+            .body("Computing the GCD with zero is boring.");
+    }
+
+    let response = format!(
+        "The greatest common divisor of the numbers {} and {} is <b>{}</b>\n",
+        form.n,
+        form.m,
+        gcd(form.n, form.m)
+    );
+
+    HttpResponse::Ok().content_type("text/html").body(response)
+}
+
+fn gcd(mut n: u64, mut m: u64) -> u64 {
+    assert!(n != 0 && m != 0);
+
+    while m != 0 {
+        if m < n {
+            let t = m;
+            m = n;
+            n = t;
+        }
+
+        m = m % n;
+    }
+
+    n
+}
+```
