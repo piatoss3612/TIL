@@ -318,3 +318,54 @@ sys     0m0.000s
 ```
 
 ---
+
+## 파일시스템과 명령줄 도구
+
+### 파일 생성
+
+```shell
+$ echo "Hello, world" > test.txt
+```
+
+### 실행
+
+```shell
+$ cargo run "world" "Rust" test.txt test-modified.txt
+   Compiling quickreplace v0.1.0 (/home/piatoss/TIL/rust/programming-rust/chapter02/quickreplace)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.88s
+     Running `target/debug/quickreplace world Rust test.txt test-modified.txt`
+$ diff test.txt test-modified.txt 
+1c1
+< Hello, world
+---
+> Hello, Rust
+```
+
+### 실행 (정규표현식)
+
+```shell
+$ cargo run "[a-z]" "0" test.txt test-modified2.txt
+    Finished dev [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/quickreplace '[a-z]' 0 test.txt test-modified2.txt`
+$ diff test.txt test-modified2.txt 
+1c1
+< Hello, world
+---
+> H0000, 00000
+```
+
+### 오류 확인
+
+```shell
+$ cargo run "[[a-z]" "0" test.txt test-modified3.txt
+    Finished dev [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/quickreplace '[[a-z]' 0 test.txt test-modified3.txt`
+Error: failed to replace text: Syntax(
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+regex parse error:
+    [[a-z]
+    ^
+error: unclosed character class
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+)
+```
