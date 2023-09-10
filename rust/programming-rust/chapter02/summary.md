@@ -278,3 +278,43 @@ fn gcd(mut n: u64, mut m: u64) -> u64 {
     n
 }
 ```
+
+---
+
+## 동시성
+
+### mandelbrot 예제
+
+- 전체 코드 설명은 무슨 소리를 하는지 하나도 모르겠으므로 나중에 다시 읽어보기로...
+
+1. `cargo build`로 빌드한 뒤 실행 (비동시적 실행)
+
+```bash
+$ time ./target/debug/mandelbrot mandel.png 4000x3000 -1.20,0.35 -1,0.20
+
+real    0m56.200s
+user    0m56.187s
+sys     0m0.013s
+```
+
+2. `cargo build --release`로 빌드한 뒤 실행 (비동시적 실행)
+
+```bash
+$ time ./target/release/mandelbrot mandel.png 4000x3000 -1.20,0.35 -1,0.20
+
+real    0m3.943s
+user    0m3.933s
+sys     0m0.011s
+```
+
+3. `cargo build --release`로 빌드한 뒤 실행 (동시적 실행)
+
+```bash
+$ time ./target/release/mandelbrot mandel.png 4000x3000 -1.20,0.35 -1,0.20
+
+real    0m1.260s
+user    0m4.241s
+sys     0m0.000s
+```
+
+---
