@@ -1,3 +1,5 @@
+use std::vec;
+
 fn main() {
     let a = true;
     if a {}
@@ -86,6 +88,95 @@ fn test_char() {
     assert_eq!('8'.to_digit(10), Some(8)); // '8'은 10진수로 8이다.
     assert_eq!('ಠ'.len_utf8(), 3); // 'ಠ'는 UTF-8로 3바이트이다.
     assert_eq!(char::from_digit(2, 10), Some('2')); // 10진수 2는 '2'이다.
+}
+
+#[test]
+fn test_tuple() {
+    let text = "I see the eigenvalue in thine eye";
+    let (head, tail) = text.split_at(21);
+    assert_eq!(head, "I see the eigenvalue ");
+    assert_eq!(tail, "in thine eye");
+}
+
+#[test]
+fn test_array() {
+    let lazy_caterer: [u32; 6] = [1, 2, 4, 7, 11, 16];
+    let taxonomy = ["Animalia", "Arthropoda", "Insecta"];
+
+    assert_eq!(lazy_caterer[3], 7);
+    assert_eq!(taxonomy.len(), 3);
+
+    let mut sieve = [true; 10000];
+    for i in 2..100 {
+        let mut j = i * i;
+        while j < 10000 {
+            sieve[j] = false;
+            j += i;
+        }
+    }
+
+    assert!(sieve[211]);
+    assert!(!sieve[9876]);
+
+    let mut chaos = [3, 5, 4, 1, 2];
+    chaos.sort();
+    assert_eq!(chaos, [1, 2, 3, 4, 5]);
+}
+
+#[test]
+fn test_vector() {
+    let mut primes = vec![2, 3, 5, 7];
+    assert_eq!(primes.iter().product::<i32>(), 210); // 벡터의 모든 요소를 곱한 결과가 210이다.
+
+    primes.push(11);
+    primes.push(13);
+    assert_eq!(primes.iter().product::<i32>(), 30030); // 벡터의 모든 요소를 곱한 결과가 30030이다.
+
+    let rows = 3;
+    let cols = 5;
+    let mut table = vec![vec![0; cols]; rows]; // 3행 5열의 2차원 벡터를 생성한다.
+    table[2][3] = 42;
+    assert_eq!(table[2][3], 42); // 2행 3열의 요소가 42이다.
+
+    let mut pal = Vec::new();
+    pal.push("step");
+    pal.push("on");
+    pal.push("no");
+    pal.push("pets");
+    assert_eq!(pal, vec!["step", "on", "no", "pets"]);
+
+    let v: Vec<i32> = (0..5).collect();
+    assert_eq!(v, [0, 1, 2, 3, 4]);
+
+    let mut palindrome = vec!["a man", "a plan", "a canal", "panama"];
+    palindrome.reverse();
+
+    assert_eq!(palindrome, vec!["panama", "a canal", "a plan", "a man"]);
+
+    let mut v = Vec::with_capacity(2);
+    assert_eq!(v.len(), 0);
+    assert_eq!(v.capacity(), 2);
+
+    v.push(1);
+    v.push(2);
+    assert_eq!(v.len(), 2);
+    assert_eq!(v.capacity(), 2);
+
+    v.push(3);
+    assert_eq!(v.len(), 3);
+    assert_eq!(v.capacity(), 4);
+
+    let mut v = vec![10, 20, 30, 40, 50];
+    v.insert(3, 35);
+    assert_eq!(v, [10, 20, 30, 35, 40, 50]);
+
+    v.remove(1);
+    assert_eq!(v, [10, 30, 35, 40, 50]);
+
+    let mut v = vec!["Snow Puff", "Glass Gem"];
+    assert_eq!(v.pop(), Some("Glass Gem"));
+    assert_eq!(v.pop(), Some("Snow Puff"));
+    assert_eq!(v.pop(), None);
 }
 
 // fn build_vector() -> Vec<i16> {
