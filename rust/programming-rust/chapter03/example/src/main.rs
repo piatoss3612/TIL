@@ -179,6 +179,42 @@ fn test_vector() {
     assert_eq!(v.pop(), None);
 }
 
+#[test]
+fn test_string() {
+    let method = b"GET";
+    assert_eq!(method, &[b'G', b'E', b'T']);
+
+    let noodles = "noodles".to_string();
+    let oodles = &noodles[1..];
+    let poodles = "ಠ_ಠ";
+
+    assert_eq!(oodles, "oodles");
+    assert_eq!(poodles.len(), 7);
+    assert_eq!(poodles.chars().count(), 3);
+
+    let temp = format!("{}°{:02}′{:02}″N", 24, 5, 23);
+    assert_eq!(temp, "24°05′23″N");
+
+    let bits = vec!["veni", "vidi", "vici"];
+    assert_eq!(bits.concat(), "venividivici");
+    assert_eq!(bits.join(", "), "veni, vidi, vici");
+
+    assert!("ONE".to_lowercase() == "one");
+
+    assert!("peanut".contains("nut"));
+    assert_eq!("ಠ_ಠ".replace("ಠ", "■"), "■_■");
+    assert_eq!("    clean\n".trim(), "clean");
+
+    for word in "veni, vidi, vici".split(", ") {
+        assert!(word.starts_with("v"));
+    }
+
+    type Bytes = Vec<u8>;
+    let b: Bytes = From::from("bors".as_bytes());
+
+    assert_eq!(b, b"bors");
+}
+
 // fn build_vector() -> Vec<i16> {
 //     // let mut v: Vec<i16> = Vec::<i16>::new(); // 반환값의 타입을 명시적으로 지정하여 i16 타입의 벡터를 반환한다.
 //     let mut v = Vec::new(); // 반환값의 타입에 따라 타입을 추론하여 i16 타입의 벡터를 반환한다.
