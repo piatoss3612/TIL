@@ -296,3 +296,234 @@ func (t Tx) Verify() (bool, error) {
 풀 노드는 실제로는 더 많은 검증을 수행한다. 에를 들어 이중 지불 확인, 합의 규칙 확인, 트랜잭션의 유효 시점 확인 등이다. 하지만 현재 단계에서는 이정도로 충분하다.
 
 ---
+
+## 7.2 트랜잭션 생성
+
+트랜잭션 검증에 사용한 코드를 활용하여 검증 항목에 부합하는 유효한 트랜잭션을 생성할 수 있다. 요컨대 생성된 트랜잭션의 입력의 합은 출력의 합보다 크거나 같아야 하고, 잠금 스트립트를 해제 스크립트로 해제할 수 있어야 한다.
+
+트랜잭션을 생성하려면 최소한 하나의 UTXO를 참조해야 한다.
+
+### 7.2.1 트랜잭션 설계
+
+트랜잭션을 설계하려면 다음 기본 질문에 답할 수 있어야 한다.
+
+1. 비트코인을 어느 주소로 보낼 것인가?
+2. 어느 UTXO를 사용할 것인가?
+3. 수수료는 얼마로 할 것인가? (얼마나 빨리 처리되길 원하는가?)
+
+### 7.2.2 트랜잭션 구성
+
+트랜잭션을 구성하기 위해서는 먼저 Base58로 표현된 주소로부터 20바이트 해시를 얻어야 한다. 이 과정은 다음 함수를 사용하면 된다.
+
+```go
+var base58Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz" // base58 인코딩에 사용할 문자열
+
+// base58로 인코딩된 문자열을 바이트 슬라이스로 디코딩하는 함수
+func DecodeBase58(s string) ([]byte, error) {
+	result := big.NewInt(0) // 결과를 저장할 big.Int
+
+	for _, c := range s {
+		// base58Alphabet에서 c의 인덱스를 찾음
+		charIndex := strings.IndexByte(base58Alphabet, byte(c))
+
+		// 58을 곱하고 인덱스를 더함
+		result.Mul(result, big.NewInt(58))
+		result.Add(result, big.NewInt(int64(charIndex)))
+	}
+
+	combined := result.FillBytes(make([]byte, 25)) // 크기가 25인 바이트 슬라이스를 만들어 big.Int를 채움
+	checksum := combined[len(combined)-4:]         // 마지막 4바이트는 체크섬
+
+	// 체크섬 검사
+	if !bytes.Equal(Hash256(combined[:len(combined)-4])[:4], checksum) {
+		return nil, fmt.Errorf("bad address: %s %s", checksum, Hash256(combined[:len(combined)-4])[:4])
+	}
+
+	return combined[1 : len(combined)-4], nil // prefix(테스트넷 여부)를 제외하고 체크섬을 제외한 바이트 슬라이스를 반환
+}
+```
+
+또한 20바이트 해시값을 잠금 스크립트로 변환하기 위해 다음 함수를 사용한다. 이 함수는 20바이트 해시값을 입력으로 받아서 p2pkh 스크립트를 반환한다.
+
+```go
+func NewP2PKHScript(h160 []byte) *Script {
+	return New(
+		0x76, // OP_DUP
+		0xa9, // OP_HASH160
+		h160, // 20바이트의 데이터
+		0x88, // OP_EQUALVERIFY
+		0xac, // OP_CHECKSIG
+	)
+}
+```
+
+이렇게 주어진 함수들을 활용하여 아래와 같이 트랜잭션을 구성할 수 있다.
+
+```go
+package main
+
+import (
+	"chapter07/script"
+	"chapter07/tx"
+	"chapter07/utils"
+	"fmt"
+)
+
+func main() {
+	checkGenTx()
+}
+
+func checkGenTx() {
+	prevTx := "0d6fe5213c0b3291f208cba8bfb59b7476dffacc4e5cb66f6eb20a080843a299" // 이전 트랜잭션 ID
+	prevIndex := 13                                                              // 이전 트랜잭션의 출력 인덱스
+	txIn := tx.NewTxIn(prevTx, prevIndex, nil)                                   // 트랜잭션 입력 생성 (해제 스크립트는 비어있음)
+
+	changeAmount := int(0.33 * 1e8)                                           // 출력 금액
+	changeH160, _ := utils.DecodeBase58("mzx5YhAH9kNHtcN481u6WkjeHjYtVeKVh2") // 잠금 스크립트를 생성할 주소
+	changeScript := script.NewP2PKHScript(changeH160)                         // p2pkh 잠금 스크립트 생성
+	changeOutput := tx.NewTxOut(changeAmount, changeScript)                   // 트랜잭션 출력 생성
+
+	targetAmount := int(0.1 * 1e8)                                            // 출력 금액
+	targetH160, _ := utils.DecodeBase58("mnrVtF8DWjMu839VW3rBfgYaAfKk8983Xf") // 잠금 스크립트를 생성할 주소
+	targetScript := script.NewP2PKHScript(targetH160)                         // p2pkh 잠금 스크립트 생성
+	targetOutput := tx.NewTxOut(targetAmount, targetScript)                   // 트랜잭션 출력 생성
+
+	txObj := tx.NewTx(1, []*tx.TxIn{txIn}, []*tx.TxOut{changeOutput, targetOutput}, 0, true) // 트랜잭션 생성
+	fmt.Println(txObj)
+}
+```
+```shell
+$ go run main.go
+tx: cd30a8da777d28ef0e61efe68a9f7c559c1d3e5bcd7b265c850ccb4068598d11
+version: 1
+inputs: [0d6fe5213c0b3291f208cba8bfb59b7476dffacc4e5cb66f6eb20a080843a299:13]
+outputs: [33000000:OP_DUP OP_HASH160 d52ad7ca9b3d096a38e752c2018e6fbc40cdf26f OP_EQUALVERIFY OP_CHECKSIG  10000000:OP_DUP OP_HASH160 507b27411ccf7f16f10297de6cef3f291623eddf OP_EQUALVERIFY OP_CHECKSIG ]
+locktime: 0
+```
+
+여기서 생성된 트랜잭션은 아직 유효하지 않다. 트랜잭션 입력에 대응되는 이전 트랜잭션 출력의 잠금 스크립트를 해제할 해제 스크립트가 비어있기 때문이다. 따라서 해제 스크립트를 생성해야 한다.
+
+
+### 7.2.3 트랜잭션 해제 스크립트 생성
+
+잠금 스크립트 안에 해싱된 공개키가 포함되어 있으므로, 이에 대응하는 비밀키를 사용하여 서명해시 z와 이에 대한 DER 형식의 서명을 생성할 수 있다.
+
+```go
+package main
+
+import (
+	"chapter07/ecc"
+	"chapter07/script"
+	"chapter07/tx"
+	"encoding/hex"
+	"fmt"
+	"math/big"
+)
+
+func main() {
+	checkGenScriptSig()
+}
+
+func checkGenScriptSig() {
+	rawTx, _ := hex.DecodeString("0100000001813f79011acb80925dfe69b3def355fe914bd1d96a3f5f71bf8303c6a989c7d1000000006b483045022100ed81ff192e75a3fd2304004dcadb746fa5e24c5031ccfcf21320b0277457c98f02207a986d955c6e0cb35d446a89d3f56100f4d7f67801c31967743a9c8e10615bed01210349fc4e631e3624a545de3f89f5d8684c7b8138bd94bdd531d2e213bf016b278afeffffff02a135ef01000000001976a914bc3b654dca7e56b04dca18f2566cdaf02e8d9ada88ac99c39800000000001976a9141c4bc762dd5423e332166702cb75f40df79fea1288ac19430600")
+	parsedTx, _ := tx.ParseTx(rawTx, false) // 트랜잭션 파싱
+
+	z, _ := parsedTx.SigHash(0)                                         // 서명 해시 생성
+	privateKey, _ := ecc.NewS256PrivateKey(big.NewInt(8675309).Bytes()) // 개인 키 생성
+	point, _ := privateKey.Sign(z)                                      // 서명 생성
+	der := point.DER()                                                  // 서명을 DER 형식으로 변환
+	sig := append(der, byte(tx.SIGHASH_ALL))                            // DER 서명에 해시 타입을 추가
+	sec := privateKey.Point().SEC(true)                                 // 공개 키를 압축된 SEC 형식으로 변환
+	scriptSig := script.New(sig, sec)                                   // 해제 스크립트 생성
+	parsedTx.Inputs[0].ScriptSig = scriptSig                            // 해제 스크립트를 트랜잭션 입력에 추가
+	encoded, err := parsedTx.Serialize()                                // 트랜잭션 직렬화
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(hex.EncodeToString(encoded)) // 직렬화된 트랜잭션 출력
+}
+```
+
+여기서 서명해시가 예제와 완전히 다른 문제 발생! 이로 인해 서명도, 직렬화된 트랜잭션도 완전히 다른 결과가 나온다...
+
+
+```
+expected z: 18037338614366229343027734445863508930887653120159589908930024158807354868134
+actual z: 27e0c5994dec7824e56dec6b2fcb342eb7cdb0d0957c2fce9882f715e85d81a6
+```
+
+SigHash 메서드 쪽에 문제가 있어 보여서 확인해보니, 입력을 직렬화할 때 입력인덱스와 매칭되지 않는 입력들의 해제 스크립트를 비우지 않고 그대로 직렬화하고 있었다. 따라서 입력을 직렬화할 때 입력인덱스와 매칭되지 않는 입력들의 해제 스크립트를 비워주는 코드를 추가하였다.
+
+```go
+// Before
+s, err := input.Serialize() // 입력을 직렬화
+if err != nil {
+return nil, err
+}
+
+// After
+s, err := NewTxIn(input.PrevTx, input.PrevIndex, nil, input.SeqNo).Serialize() // 해제 스크립트가 비어있는 새로운 입력을 생성하고 직렬화
+if err != nil {
+	return nil, err
+}
+```
+
+이렇게 변경하고 나도 해결이 안되네...
+
+```
+expected z: 18037338614366229343027734445863508930887653120159589908930024158807354868134
+actual z: 27e0c5994dec7824e56dec6b2fcb342eb7cdb0d0957c2fce9882f715e85d81a6
+```
+
+---
+
+아 '18037338614366229343027734445863508930887653120159589908930024158807354868134'가 big number였네요! z를 *big.Int 타입으로 변환해서 출력해 보니 동일한 값이 나왔습니다. 여기서 어리버리를 까버렸네요...
+
+```
+expected z: 18037338614366229343027734445863508930887653120159589908930024158807354868134
+actual z: 18037338614366229343027734445863508930887653120159589908930024158807354868134
+```
+
+그런데 문제는 해결되지 않았습니다. 서명이 완전히 다른 값이 나오는 겁니다.
+
+```
+expected signature: Signature(7db2402a3311a3b845b038885e3dd889c08126a8570f26a844e3e4049c482a11,10178cdca4129eacbeab7c44648bf5ac1f9cac217cd609d216ec2ebc8d242c0a)
+actual signature: Signature(58b1dabdbe559c98cb592ed9e80c4b4026d388e508f151c0507068ccfb66cc22, 33732f71be9b4567fdfb7388907c9f2c9be872e1fe43540e081408dd2be7a24a)
+```
+
+이 부분은 서명 메서드에서 로그를 찍어보니 k값이 완전히 다르게 나오는 것을 확인할 수 있었습니다. 하 진짜... 이런데서 문제가 생길 줄이야...
+
+```
+expected k: 31962261299247255223153268424202387061992322641623030136314162059063217934409
+actual k: 64814951868233252747544664310574630482194884804266162042260186974060977004832
+```
+
+이 부분도 해결했습니다! k를 구하는 메서드에서 z와 비밀키를 *big.Int 타입으로 변환한 뒤에 FillBytes 메서드를 사용하여 32바이트를 채워주니 해결되었습니다.
+
+```go
+// Before
+zBytes := z.Bytes()
+secreteBytes := pvk.secret
+
+// After
+zBytes := z.FillBytes(make([]byte, 32))
+secreteBytes := big.NewInt(0).SetBytes(pvk.secret).FillBytes(make([]byte, 32))
+```
+
+이 부분이 해결되니 나머지는 자연스럽게 해결되었습니다.
+
+```
+expected k: 31962261299247255223153268424202387061992322641623030136314162059063217934409
+actual k: 31962261299247255223153268424202387061992322641623030136314162059063217934409
+
+expected signature: Signature(7db2402a3311a3b845b038885e3dd889c08126a8570f26a844e3e4049c482a11,10178cdca4129eacbeab7c44648bf5ac1f9cac217cd609d216ec2ebc8d242c0a)
+actual signature: Signature(7db2402a3311a3b845b038885e3dd889c08126a8570f26a844e3e4049c482a11, 10178cdca4129eacbeab7c44648bf5ac1f9cac217cd609d216ec2ebc8d242c0a)
+
+expected serialized tx: 0100000001813f79011acb80925dfe69b3def355fe914bd1d96a3f5f71bf8303c6a989c7d1000000006a47304402207db2402a3311a3b845b038885e3dd889c08126a8570f26a844e3e4049c482a11022010178cdca4129eacbeab7c44648bf5ac1f9cac217cd609d216ec2ebc8d242c0a012103935581e52c354cd2f484fe8ed83af7a3097005b2f9c60bff71d35bd795f54b67feffffff02a135ef01000000001976a914bc3b654dca7e56b04dca18f2566cdaf02e8d9ada88ac99c39800000000001976a9141c4bc762dd5423e332166702cb75f40df79fea1288ac19430600
+actual serialized tx: 0100000001813f79011acb80925dfe69b3def355fe914bd1d96a3f5f71bf8303c6a989c7d1000000006a47304402207db2402a3311a3b845b038885e3dd889c08126a8570f26a844e3e4049c482a11022010178cdca4129eacbeab7c44648bf5ac1f9cac217cd609d216ec2ebc8d242c0a012103935581e52c354cd2f484fe8ed83af7a3097005b2f9c60bff71d35bd795f54b67feffffff02a135ef01000000001976a914bc3b654dca7e56b04dca18f2566cdaf02e8d9ada88ac99c39800000000001976a9141c4bc762dd5423e332166702cb75f40df79fea1288ac19430600
+```
+
+근데 또 입력에 서명하는 메서드가 안되네요. 진짜 총체적 난국이다... 이 부분은 다음에 다시 해보겠습니다.
+
+---
