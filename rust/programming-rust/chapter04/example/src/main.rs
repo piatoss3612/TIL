@@ -101,11 +101,43 @@ fn test_move() {
     });
 
     // let first_name = composers[0].name; // 이렇게 하면 cannot move out of index 발생
-    let first_name = composers[0].name.take();
+    let first_name = std::mem::replace(&mut composers[0].name, None);
     assert_eq!(first_name, Some("Palestrina".to_string()));
     assert_eq!(composers[0].name, None);
 
     // 이런 식으로 Option을 사용하는 경우가 많아 관련된 메서드가 존재한다.
-    // let first_name = composers[0].name.take();
+    let first_name = composers[0].name.take();
     // assert_eq!(first_name, None);
+}
+
+#[test]
+fn test_struct_copy() {
+    #[derive(Copy, Clone)]
+    struct Label {
+        number: u32,
+    }
+
+    fn print(l: Label) {
+        println!("STAMP: {}", l.number);
+    }
+
+    let l = Label { number: 3 };
+    print(l);
+    print(l);
+}
+
+#[test]
+fn test_reference_count() {
+    use std::rc::Rc;
+
+    let s: Rc<String> = Rc::new("shirataki".to_string());
+    let t: Rc<String> = s.clone();
+    let u: Rc<String> = s.clone();
+
+    assert!(s.contains("shira"));
+    assert_eq!(t.find("taki"), Some(5));
+    println!(
+        "{} are quite chewy, almost bouncy, and largely flavorless",
+        u
+    );
 }

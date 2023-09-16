@@ -223,3 +223,76 @@ assert_eq!(first_name, None);
 ```
 
 ---
+
+## Copy 타입: 이동의 예외
+
+이동되는 값은 주로 벡터와 문자열처럼 잠재적인 메모리 사용량이 많고, 복사하는데 비용이 많이 드는 타입인 경우가 많다. 그러나 정수나 문자 같은 단순한 타입의 경우에는 이런 세심한 처리가 사실 불필요하다.
+
+```rust
+let num1: i32 = 5;
+let num2 = num1; // num1의 복사본을 만든다.
+```
+
+i32는 메모리에 있는 단순한 비트 패턴에 불과할 뿐, 힙 자원을 소유하거나 다른 복잡한 타입의 필드를 가지고 있지 않다. 따라서 이런 타입은 이동 대신 복사를 수행한다. 따라서 num1의 복사본을 만들어 num2에 할당하고 num1은 여전히 유효한 상태로 남아있다.
+
+Copy 타입은 다음과 같은 특징을 가진다.
+
+1. Copy 타입은 이동 대신 복사를 수행한다. 함수와 생성자에 넘길 때도 마찬가지다.
+2. Copy 타입에는 모든 머신 정수와 부동소수점 타입, char, bool, Copy 타입으로 된 튜플이나 고정 길이 배열이 포함된다.
+
+struct 타입은 기본적으로 Copy 타입이 아니다. 그러나 모든 필드가 Copy 타입이라면 어트리뷰트 #[derive(Copy, Clone)]을 사용하여 타입을 Copy로 만들 수 있다. Copy 타입이 아닌 필드로 구성된 구조체는 Copy 타입이 될 수 없음에 주의!
+
+```rust
+fn test_struct_copy() {
+    #[derive(Copy, Clone)]
+    struct Label {
+        number: u32,
+    }
+
+    fn print(l: Label) {
+        println!("STAMP: {}", l.number);
+    }
+
+    let l = Label { number: 3 };
+    print(l);
+    print(l); // 만약 Label이 Copy 타입이 아니라면 이전의 print 호출에서 소유권이 이동되었으므로 컴파일 에러가 발생한다.
+}
+```
+
+---
+
+## Rc<T>와 Arc<T>: 공유된 소유권
+
+기본적으로 러스트는 하나의 값에 대해 오직 하나의 소유자만이 존재할 수 있다. 그러나 여러 사용자가 하나의 값에 접근하고 싶은 경우도 있다. 이런 경우 러스트는 레퍼런스 카운트 기반의 포인터 타입인 Rc<T>와 Arc<T>를 제공한다.
+
+Rc<T>와 Arc<T> 타입은 거의 비슷한데, 유일한 차이점이라면 Rc<T>는 스레드 안전성을 갖지 않는 더 빠른 코드를 써서 레퍼런스 카운트를 갱신하고 Arc<T>는 스레드 간에 직접 공유해도 안전하다. (Arc는 Atomic Reference Counting의 약자)
+
+Rc<T>와 Arc<T>는 러스트의 표준 라이브러리에 정의된 타입이다. 따라서 use 문을 통해 가져와야 한다.
+Rc<T>와 Arc<T>는 거의 비슷하므로 Rc<T>를 살펴보자.
+
+```rust
+use std::rc::Rc;
+
+let s: Rc<String> = Rc::new("shirataki".to_string());
+let t: Rc<String> = s.clone();
+let u: Rc<String> = s.clone();
+```
+
+임의의 타입 T에 대해 Rc<T>는 레퍼런스 카운트를 내장한 힙에 할당된 T를 가리키는 포인터다. Rc<T>값을 복제하면 T가 복사되는 것이 아닌, 이를 가리키는 또 다른 포인터가 만들어지고 레퍼런스 카운트가 증가한다.
+
+```rust
+assert!(s.contains("shira"));
+assert_eq!(t.find("taki"), Some(5));
+println!(
+    "{} are quite chewy, almost bouncy, and largely flavorless",
+    u
+);
+```
+
+RC 포인터가 소유한 값은 변경할 수 없다. 이를 통해 러스트는 메모리 안전성과 스레드 안전성을 보장한다. 또한 포인터가 서로를 가리키는 순환 참조를 허용하지 않는다. 이런 순환 참조는 메모리 누수를 발생시키기 때문이다.
+
+한편으로, 러스트는 변경할 수 없는 값의 일부를 변경할 수 있는 방법을 제공한다. 이를 내부 가변성(internal mutability)이라고 한다. 이들 기법은 Rc 포인터와 결합하면 순환 구조를 만들어 메모리 누수를 발생시킬 수 있다.
+
+연결 일부를 약한 포인터(weak pointer)인 std::rc::Weak로 만들어서 Rc 포인터의 순환 구조가 형성되는 걸 피할 수도 있다.
+
+여기까지 러스트의 이동과 소유권에 대해 알아보았다. 다음 장에서는 러스트의 레퍼런스를 살펴본다.
