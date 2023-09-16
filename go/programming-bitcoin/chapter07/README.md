@@ -526,4 +526,84 @@ actual serialized tx: 0100000001813f79011acb80925dfe69b3def355fe914bd1d96a3f5f71
 
 근데 또 입력에 서명하는 메서드가 안되네요. 진짜 총체적 난국이다... 이 부분은 다음에 다시 해보겠습니다.
 
+이거 문제가 뭔지 알 것 같습니다. 메인넷에서 생선된 트랜잭션인데 비밀키가 '8675309' 이따위로 허술하진 않을 거란 말이죠. 맞겠지? 이런 비밀키는 써서는 안되겠죠? 결론은 제 코드는 문제가 없다는 겁니다. 이 부분은 테스트넷 트랜잭션을 생성하면서 다시 검증해보겠습니다.
+
 ---
+
+## 7.3 테스트넷 트랜잭션 생성 및 전파
+
+테스트넷 트랜잭션을 생성하기 위해서는 일단 테스트넷 비트코인이 필요하다. 그리고 테스트넷 비트코인을 받기 위해서는 테스트넷 주소가 필요하다. 테스트넷 주소는 다음과 같이 생성할 수 있다.
+
+```go
+func checkGenTestnetTx() {
+	secret := utils.LittleEndianToBigInt(utils.Hash256(utils.StringToBytes("piatoss rules the world")))
+	privateKey, _ := ecc.NewS256PrivateKey(secret.Bytes())
+
+	address := privateKey.Point().Address(true, true)
+	fmt.Println(address)
+}
+```
+```shell
+$ go run main.go
+mxbVdvxhfkjZPSB2eGSPAcUZJEYNPnL8XW
+```
+
+이제 구글에 testnet bitcoin faucet을 검색해보면 테스트 비트코인을 받을 수 있는 사이트를 찾을 수 있다. 그 중 한 곳에 들어가서 생성된 테스트넷 주소를 입력하면 테스트넷 비트코인을 받을 수 있다. 사용한 주소는 https://coinfaucet.eu/en/btc-testnet/ 이다.
+
+이제 트랜잭션을 생성하면 되는데... 입력에 서명하는 메서드에서 오류가 발생한다.
+
+```shell
+2023/09/16 11:06:25 line 1448: invalid length
+panic: failed to evaluate OP_CHECKSIG
+```
+
+서명의 길이가 잘못되었다는 오류가 발생한다. 아마도 해시 유형이 추가되어 있어서 길이 계산이 잘못된 것 같다.
+길이를 비교하는 부분만 지우면 잘 동작한다. 일단 임시로 이렇게 진행해보자.
+
+```go
+func checkGenTestnetTx() {
+	secret := utils.LittleEndianToBigInt(utils.Hash256(utils.StringToBytes("piatoss rules the world")))
+	privateKey, _ := ecc.NewS256PrivateKey(secret.Bytes())
+
+	address := privateKey.Point().Address(true, true)
+
+	prevTx := "e770e0b481166da7d0d139c855e86633a12dbd4fa9b97f33a31fc9a458f8ddd7"
+	prevIndex := 0
+	txIn := tx.NewTxIn(prevTx, prevIndex, nil)
+
+	balance := 1193538
+
+	changeAmount := balance - (balance * 6 / 10) // 40% of balance
+	changeH160, _ := utils.DecodeBase58(address)
+	changeScript := script.NewP2PKHScript(changeH160)
+	changeOutput := tx.NewTxOut(changeAmount, changeScript)
+
+	targetAmount := balance * 6 / 10 // 60% of balance
+	targetH160, _ := utils.DecodeBase58("mwJn1YPMq7y5F8J3LkC5Hxg9PHyZ5K4cFv")
+	targetScript := script.NewP2PKHScript(targetH160)
+	targetOutput := tx.NewTxOut(targetAmount, targetScript)
+
+	txObj := tx.NewTx(1, []*tx.TxIn{txIn}, []*tx.TxOut{changeOutput, targetOutput}, 0, true)
+
+	ok, err := txObj.SignInput(0, privateKey, true)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(ok)
+
+	serializedTx, err := txObj.Serialize()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(hex.EncodeToString(serializedTx))
+}
+```
+```shell
+$ go run main.go
+true
+0100000001d7ddf858a4c91fa3337fb9a94fbd2da13366e855c839d1d0a76d1681b4e070e7000000006b4830450221009f1546297fb02e2385cb352bd999f52f31ff8ca2851f0df5b0fe168891c92516022043e7bccacbaca8863962132a957994c09b14e5eaceb47f5b95b074b95cc54ff3012103a7005a25ae9cf0ed9804d4d5f1b0bea6d7b8e901dd4bfa4e21d0914b7e195d74ffffffff02e8480700000000001976a914bb55f73b3c61e3c4e45bf2466a67109652cde9bf88ac5aed0a00000000001976a914ad346f8eb57dee9a37981716e498120ae80e44f788ac00000000
+```
+
+이렇게 입력에 서명을 한 뒤에 직렬화한 트랜잭션을 https://live.blockcypher.com/btc-testnet/pushtx/ 에서 전파하면 테스트넷에서 트랜잭션이 전파된다.
