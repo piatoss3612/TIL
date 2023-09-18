@@ -1,0 +1,7 @@
+[project]
+authors = ["Piatoss"]
+entry = "main.sw"
+license = "Apache-2.0"
+name = "example1"
+
+[dependencies]
