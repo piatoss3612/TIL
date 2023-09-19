@@ -46,3 +46,67 @@ fn main() {
     sort_works(&mut table);
     show(&table);
 }
+
+#[test]
+fn test_reference() {
+    struct Anime {
+        name: &'static str,
+        bechdel_pass: bool,
+    }
+
+    let aria = Anime {
+        name: "Aria: The Animation",
+        bechdel_pass: true,
+    };
+    let anime_ref = &aria;
+    assert_eq!(anime_ref.name, "Aria: The Animation"); // 암묵적으로 역참조
+    assert_eq!((*anime_ref).name, "Aria: The Animation"); // 명시적으로 역참조
+
+    let mut v = vec![1973, 1968];
+    v.sort();
+    (&mut v).sort(); // 명시적으로 역참조
+
+    let x = 10;
+    let y = 20;
+    let mut r = &x;
+
+    if true {
+        r = &y;
+    }
+
+    assert!(*r == 10 || *r == 20);
+
+    struct Point {
+        x: i32,
+        y: i32,
+    }
+    let point = Point { x: 1000, y: 729 };
+    let r = &point;
+    let rr = &r;
+    let rrr = &rr;
+
+    assert_eq!(rrr.y, 729);
+
+    let x = 10;
+    let y = 10;
+
+    let rx = &x;
+    let ry = &y;
+
+    let rrx = &rx;
+    let rry = &ry;
+
+    assert!(rrx <= rry);
+    assert!(rrx == rry);
+
+    assert!(!std::ptr::eq(rx, ry));
+
+    // assert!(rx == rrx); // 타입 불일치: &i32 != &&i32
+    assert!(rx == *rrx); // 문제 없음: &i32 == &i32
+
+    fn factorial(n: usize) -> usize {
+        (1..n + 1).product()
+    }
+    let r = &factorial(6);
+    assert_eq!(r + &1009, 1729);
+}
