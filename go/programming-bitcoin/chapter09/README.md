@@ -320,3 +320,259 @@ func (b Block) Bip141() bool {
 논스(Nonce, Number used only ONCE)값은 작업증명을 위해 채굴자가 임의로 지정하는 값입니다. 논스값을 조정하여 블록의 해시값이 특정 조건을 만족하도록 합니다.
 
 ---
+
+## 9.3 작업증명
+
+작업증명(PoW, Proof of Work)은 탈중앙화 방식의 비트코인 채굴을 가능하게 하고, 전체 네트워크 보안을 유지하는 핵심 기능입니다. 작업증명은 특정한 조건을 만족하는 매우 희소한 숫자를 찾는 과정입니다. 채굴자들은 저마다 특정 조건을 만족할 때까지 논스값을 조정하여 블록 헤더의 해시값을 계속해서 계산합니다. 만약 블록 헤더의 해시값이 특정 조건을 만족하면 블록을 생성한 채굴자는 다른 채굴자들에게 블록을 전파하고 검증을 요청합니다. 검증이 완료되면 채굴자는 블록을 네트워크에 전파하여 블록체인에 추가합니다. 이러한 과정을 거치면서 채굴자는 채굴에 대한 보상으로 비트코인을 받게 됩니다. 비트코인을 보상으로 받을 수 있기 때문에 많은 채굴자들이 블록을 생성하기 위해 경쟁하고 있으며, 이는 곧 소수의 채굴자가 네트워크를 독점하는 것을 방지하고 전체 네트워크를 안전하게 유지하는 것으로 이어집니다.
+
+특정 조건은 다음과 같습니다.
+
+> 블록 헤더의 해시값이 특정 조건을 만족하는 숫자보다 작아야 한다.
+
+### 9.3.1 채굴자의 해시값 생성 방법
+
+특정 조건을 만족하는 해시값을 찾기 위해 채굴자는 블록 헤더의 모든 필드를 직렬화한 후 해시값을 계산합니다. 이 때 변경할 수 있는 값들이 있습니다. 대표적으로 논스값이 있습니다. 논스값은 채굴자가 임의로 지정할 수 있는 값입니다. 그러나 논스값은 4바이트로 크기가 작기 때문에 최신 채굴 장비 몇 대면 금방 확인할 수 있기 때문에 작업증명을 찾기에는 충분한 크기가 아닙니다.
+
+다른 방법들로는 코인베이스 트랜잭션을 변경하여 새로운 머클루트를 만들거나, 버전 필드를 변경할 수 있습니다.
+
+### 9.3.2 목푯값
+
+목푯값은 특정 조건을 만족하는 해시값을 찾기 위한 기준값입니다. 즉, 블록 헤더의 해시값이 목푯값보다 작아야 합니다. 목푯값은 블록 헤더의 비트값으로 계산된 256비트 숫자입니다.
+
+블록헤더의 비트값은 4바이트 크기로, 처음 세 바이트를 계수로 사용하고 마지막 바이트를 지수로 사용합니다. 비트값은 다음과 같은 식으로 계산됩니다.
+
+```go
+func calcTargetFromBits() {
+	bits, _ := hex.DecodeString("e93c0118")
+	exp := big.NewInt(0).SetBytes([]byte{bits[len(bits)-1]}) // 지수
+	coef := utils.LittleEndianToBigInt(bits[:len(bits)-1])   // 계수
+
+	target := big.NewInt(0).Mul(coef, big.NewInt(0).Exp(big.NewInt(256), big.NewInt(0).Sub(exp, big.NewInt(3)), nil)) // 계수 * 256^(지수-3) = 목푯값
+
+	fmt.Println(hex.EncodeToString(target.FillBytes(make([]byte, 32)))) // 0000000000000000013ce9000000000000000000000000000000000000000000
+}
+```
+```bash
+$ go run main.go
+0000000000000000013ce9000000000000000000000000000000000000000000
+```
+
+이 목푯값보다 작은 해시값을 찾는 것이 작업증명의 목표입니다. 이 목푯값은 얼마나 찾기 어려울까요? (내용 추가 필요)
+
+이 블록 헤더의 해시값이 작업증명을 만족하는지 다음과 같이 확인할 수 있습니다.
+
+```go
+func calcTargetFromBits() {
+	bits, _ := hex.DecodeString("e93c0118")
+	exp := big.NewInt(0).SetBytes([]byte{bits[len(bits)-1]}) // 지수
+	coef := utils.LittleEndianToBigInt(bits[:len(bits)-1])   // 계수
+
+	target := big.NewInt(0).Mul(coef, big.NewInt(0).Exp(big.NewInt(256), big.NewInt(0).Sub(exp, big.NewInt(3)), nil)) // 계수 * 256^(지수-3) = 목푯값
+
+	fmt.Println(hex.EncodeToString(target.FillBytes(make([]byte, 32)))) // 0000000000000000013ce9000000000000000000000000000000000000000000
+
+	rawBlockHeader, _ := hex.DecodeString("020000208ec39428b17323fa0ddec8e887b4a7c53b8c0a0a220cfd0000000000000000005b0750fce0a889502d40508d39576821155e9c9e3f5c3157f961db38fd8b25be1e77a759e93c0118a4ffd71d")
+	proof := utils.LittleEndianToBigInt(utils.Hash256(rawBlockHeader))
+
+	fmt.Println(proof.Cmp(target) < 0) // proof가 target보다 작으면 Cmp는 -1을 반환
+}
+```
+```bash
+$ go run main.go
+true
+```
+
+### 연습문제 9.9
+
+block 패키지의 helper.go 파일에 BitsToTarget 함수를 구현하세요.
+
+```go
+func BitsToTarget(b []byte) *big.Int {
+	exp := utils.BytesToBigInt(b[len(b)-1:])         // 지수
+	coef := utils.LittleEndianToBigInt(b[:len(b)-1]) // 계수
+
+	return big.NewInt(0).Mul(coef, big.NewInt(0).Exp(big.NewInt(256), big.NewInt(0).Sub(exp, big.NewInt(3)), nil)) // 계수 * 256^(지수-3) = 목푯값
+}
+```
+
+### 9.3.3 난이도
+
+난이도는 목푯값만으로는 가늠하기 어려운 작업증명의 난이도를 표현하기 위한 값입니다. 목푯값이 작다면 해시값을 구하는 것이 어려울 것이므로 난이도는 목푯값에 반비례하도록 정의하면 서로 다른 난이도 사이의 비교가 쉬울 것입니다. 참고로 최초 블록의 난이도는 1이었습니다. 2023년 9월 21일 기준으로는 57119871304635(https://blockchair.com/ko/bitcoin/charts/difficulty)입니다... 어마어마하네요.
+
+난이도 계산 수식은 다음과 같습니다.
+```
+difficulty = 0xffff * 256^(0x1d - 3) / target
+```
+```go
+func calcDifficulty() {
+	bits, _ := hex.DecodeString("e93c0118")
+	target := block.BitsToTarget(bits)
+
+	// difficulty = 0xffff * 256^(0x1d - 3) / target
+	difficulty := big.NewFloat(0).Mul(big.NewFloat(0xffff), big.NewFloat(0).Quo(big.NewFloat(0).SetInt(new(big.Int).Exp(big.NewInt(256), big.NewInt(0).Sub(big.NewInt(0x1d), big.NewInt(3)), nil)), big.NewFloat(0).SetInt(target))) // 0xffff * 256^(0x1d - 3) / target
+
+	fmt.Println(difficulty.Text('f', -1)) // 888171856257.3206
+}
+```
+```bash
+$ go run main.go 
+888171856257.3206
+```
+
+### 연습문제 9.10
+
+Block 구조체의 Difficulty 메서드를 구현하세요.
+
+```go
+// 블록의 난이도를 계산하는 함수
+func (b Block) Difficulty() *big.Float {
+	target := BitsToTarget(utils.IntToBytes(b.Bits, 4))
+	return big.NewFloat(0).Mul(big.NewFloat(0xffff), big.NewFloat(0).Quo(big.NewFloat(0).SetInt(new(big.Int).Exp(big.NewInt(256), big.NewInt(0).Sub(big.NewInt(0x1d), big.NewInt(3)), nil)), big.NewFloat(0).SetInt(target))) // 0xffff * 256^(0x1d - 3) / target
+}
+```
+
+### 9.3.4 작업증명 유효성 확인
+
+블록 헤더의 hash256 해시값을 계산하고 이를 리틀엔디언 정수로 읽어서 목푯값과 비교하여 작업증명을 확인할 수 있습니다. 이 때 블록 헤더의 해시값이 목푯값보다 작아야 합니다.
+
+### 연습문제 9.11
+
+Block 구조체의 CheckProofOfWork 메서드를 구현하세요.
+
+```go
+// 작업증명의 유호성을 검증하는 함수
+func (b Block) CheckProofOfWork() (bool, error) {
+	hash, err := b.Hash() // 블록의 해시를 계산
+	if err != nil {
+		return false, err
+	}
+
+	target := BitsToTarget(utils.IntToBytes(b.Bits, 4))    // 목푯값 계산
+	proof := new(big.Int).SetBytes(utils.ReverseBytes(hash)) // 블록의 해시를 little endian으로 변환한 뒤 big.Int로 변환
+
+	return proof.Cmp(target) == -1, nil // 블록의 해시가 목푯값보다 작으면 true, 크거나 같으면 false 반환
+}
+```
+
+### 9.3.5 난이도 조정
+
+비트코인에서는 2016개의 블록이 생성되는 시간을 난이도 조정 기간(difficulty adjustment period)라고 합니다. 이 기간 동안 생성된 블록의 개수가 2016개가 되도록 난이도를 조정합니다. 이 때 난이도를 조정하는 방법은 다음과 같습니다.
+
+```
+time_differential = (난이도 조정 기간의 마지막 블록 타임스탬프) - (난이도 조정 기간의 첫 번째 블록 타임스탬프)
+
+if time_differential > 8주:
+    new_target = previous_target * 8주 / 2주
+else if time_differential < 3.5일:
+    new_target = previous_target * 3.5일 / 2주
+else:
+    new_target = previous_target * time_differential / 2주
+```
+
+만약 time_differential이 2주보다 크다면 목푯값이 커지면서 난이도가 쉬워지고, time_differential이 2주보다 작다면 목푯값이 작아지면서 난이도가 어려워집니다.
+이 때 time_differential의 최댓값은 8주, 최솟값은 3.5일로 설정하여 목푯값은 최소 1/4로, 최대 4배로 제한됩니다. 
+
+각 블록이 평균적으로 10분 마다 생성된다면, 2016개의 블록을 생성하기 위해서 2주의 시간이 걸립니다. 따라서 네트워크의 해시 파워가 크고 작은 것에 상관없이 2주의 시간이 걸리도록 난이도를 조정하는 방향으로 설계되었습니다.
+
+이 공식은 다음과 같이 코딩할 수 있습니다.
+
+```go
+func calcNewTarget() {
+	rawLastBlock, _ := hex.DecodeString("00000020fdf740b0e49cf75bb3d5168fb3586f7613dcc5cd89675b0100000000000000002e37b144c0baced07eb7e7b64da916cd3121f2427005551aeb0ec6a6402ac7d7f0e4235954d801187f5da9f5")
+	rawFirstBlock, _ := hex.DecodeString("000000201ecd89664fd205a37566e694269ed76e425803003628ab010000000000000000bfcade29d080d9aae8fd461254b041805ae442749f2a40100440fc0e3d5868e55019345954d80118a1721b2e")
+
+	lastBlock, _ := block.Parse(rawLastBlock)
+	firstBlock, _ := block.Parse(rawFirstBlock)
+
+	timeDiff := lastBlock.Timestamp - firstBlock.Timestamp
+
+	twoWeek := 60 * 60 * 24 * 14
+
+	if timeDiff > twoWeek*4 {
+		timeDiff = twoWeek * 4
+	} else if timeDiff < twoWeek/4 {
+		timeDiff = twoWeek / 4
+	}
+
+	newTarget := big.NewInt(0).Div(big.NewInt(0).Mul(lastBlock.Target(), big.NewInt(int64(timeDiff))), big.NewInt(int64(twoWeek))).FillBytes(make([]byte, 32))
+
+	fmt.Println(hex.EncodeToString(newTarget))
+}
+```
+```bash
+$ go run main.go
+0000000000000000007615000000000000000000000000000000000000000000
+```
+
+다음 목푯값을 계산하고 나면 이를 비트값으로 변환하여 블록 헤더에 넣어줍니다. 목푯값을 비트값으로 변환하는 연산은 다음과 같습니다.
+
+```go
+// 목푯값을 비트로 변환하는 함수
+func TargetToBits(target *big.Int) []byte {
+	rawBytes := target.Bytes() // 목푯값을 []byte로 변환, 앞에 0은 제외됨
+
+	var exp int
+	var coef []byte
+
+	// 만약 rawBytes가 1로 시작하면 음수가 되므로 변환해줌
+	if rawBytes[0] > 0x7f {
+		exp = len(rawBytes) + 1                      // 0x00을 추가했으므로 지수는 1 증가
+		coef = append([]byte{0x00}, rawBytes[:2]...) // 0x00을 추가해줌
+	} else {
+		exp = len(rawBytes) // 지수
+		coef = rawBytes[:3] // 계수
+	}
+
+	return append(utils.ReverseBytes(coef), byte(exp)) // 계수를 리틀엔디언으로 변환하고 지수를 뒤에 붙임
+}
+```
+
+### 연습문제 9.12
+
+```go
+func calcNewTargetAndConvertToBits() {
+	rawFirstBlock, _ := hex.DecodeString("02000020f1472d9db4b563c35f97c428ac903f23b7fc055d1cfc26000000000000000000b3f449fcbe1bc4cfbcb8283a0d2c037f961a3fdf2b8bedc144973735eea707e1264258597e8b0118e5f00474")
+	rawLastBlock, _ := hex.DecodeString("000000203471101bbda3fe307664b3283a9ef0e97d9a38a7eacd8800000000000000000010c8aba8479bbaa5e0848152fd3c2289ca50e1c3e58c9a4faaafbdf5803c5448ddb845597e8b0118e43a81d3")
+
+	firstBlock, _ := block.Parse(rawFirstBlock)
+	lastBlock, _ := block.Parse(rawLastBlock)
+
+	timeDiff := lastBlock.Timestamp - firstBlock.Timestamp
+
+	twoWeek := 60 * 60 * 24 * 14
+
+	if timeDiff > twoWeek*4 {
+		timeDiff = twoWeek * 4
+	} else if timeDiff < twoWeek/4 {
+		timeDiff = twoWeek / 4
+	}
+
+	newTarget := big.NewInt(0).Div(big.NewInt(0).Mul(lastBlock.Target(), big.NewInt(int64(timeDiff))), big.NewInt(int64(twoWeek)))
+
+	newBits := block.TargetToBits(newTarget)
+
+	fmt.Println(hex.EncodeToString(newBits)) // 80df6217
+}
+```
+```bash
+$ go run main.go
+80df6217
+```
+
+### 연습문제 9.13
+
+block 패키지의 helper.go 파일에 CalculateNewBits 함수를 구현하세요.
+
+```go
+func CalculateNewBits(prevBits []byte, timeDiff int64) []byte {
+	if timeDiff > TWO_WEEK*4 {
+		timeDiff = TWO_WEEK * 4
+	} else if timeDiff < TWO_WEEK/4 {
+		timeDiff = TWO_WEEK / 4
+	}
+
+	newTarget := big.NewInt(0).Div(big.NewInt(0).Mul(BitsToTarget(prevBits), big.NewInt(timeDiff)), big.NewInt(TWO_WEEK))
+
+	return TargetToBits(newTarget)
+}
+```
