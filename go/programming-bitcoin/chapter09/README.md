@@ -108,3 +108,215 @@ func (t Tx) CoinbaseHeight() (bool, int) {
 
 ## 9.2 블록 헤더
 
+블록 헤더는 블록의 메타데이터를 담고 있습니다. 블록 헤더는 다음과 같은 정보를 담고 있습니다.
+
+- 블록 버전
+- 이전 블록의 해시
+- 머클 루트
+- 타임스탬프
+- 비트값 (난이도)
+- 논스값
+
+블록 헤더는 80바이트의 고정된 크기를 가지고 있습니다. 블록 헤더는 11장에서 살펴볼 단순 지급 검증(SPV, Simple Payment Verification)을 위한 필수 정보를 담고 있습니다.
+
+트랜잭션 ID처럼 블록 ID도 리틀엔디언으로 표현된 헤더의 hash256 해시값입니다. 블록 ID는 이어지는 다음 블록의 이전 블록 해시값으로 들어갑니다.
+
+```go
+func readBlockID() {
+	rawBlockHeader, _ := hex.DecodeString("020000208ec39428b17323fa0ddec8e887b4a7c53b8c0a0a220cfd0000000000000000005b0750fce0a889502d40508d39576821155e9c9e3f5c3157f961db38fd8b25be1e77a759e93c0118a4ffd71d")
+	blockHash := utils.Hash256(rawBlockHeader)
+
+	blockID := hex.EncodeToString(utils.ReverseBytes(blockHash))
+	fmt.Println(blockID) // 0000000000000000007e9e4c586439b0cdbe13b1370bdd9435d76a644d047523
+}
+```
+```bash
+$ go run main.go 
+0000000000000000007e9e4c586439b0cdbe13b1370bdd9435d76a644d047523
+```
+
+지금까지 배운 것을 기초로 Block 구조체를 정의하고 메서드를 구현해보겠습니다.
+
+```go
+type Block struct {
+	Version    int
+	PrevBlock  string
+	MerkleRoot string
+	Timestamp  int
+	Bits       int
+	Nonce      int
+}
+
+func New(version int, prevBlock, merkleRoot string, timestamp, bits, nonce int) *Block {
+	return &Block{
+		Version:    version,
+		PrevBlock:  prevBlock,
+		MerkleRoot: merkleRoot,
+		Timestamp:  timestamp,
+		Bits:       bits,
+		Nonce:      nonce,
+	}
+}
+```
+
+### 연습문제 9.3
+
+Block 구조체의 Parse 메서드를 구현하세요.
+
+```go
+// 블록을 파싱하는 함수
+func Parse(b []byte) (*Block, error) {
+	if len(b) < 80 {
+		return nil, errors.New("Block is too short")
+	}
+
+	buf := bytes.NewBuffer(b)
+
+	version := utils.LittleEndianToInt(buf.Next(4))                    // 4바이트 리틀엔디언 정수
+	prevBlock := hex.EncodeToString(utils.ReverseBytes(buf.Next(32)))  // 32바이트 리틀엔디언 해시
+	merkleRoot := hex.EncodeToString(utils.ReverseBytes(buf.Next(32))) // 32바이트 리틀엔디언 해시
+	timestamp := utils.LittleEndianToInt(buf.Next(4))                  // 4바이트 리틀엔디언 정수
+	bits := utils.BytesToInt(buf.Next(4))                              // 4바이트 리틀엔디언 정수
+	nonce := utils.BytesToInt(buf.Next(4))                             // 4바이트 리틀엔디언 정수
+
+	return New(version, prevBlock, merkleRoot, timestamp, bits, nonce), nil
+}
+```
+
+### 연습문제 9.4
+
+Block 구조체의 Serialize 메서드를 구현하세요.
+
+```go
+// 블록을 직렬화하는 함수
+func (b *Block) Serialize() ([]byte, error) {
+	result := make([]byte, 0, 80)
+
+	version := utils.IntToLittleEndian(b.Version, 4)     // version 4바이트 리틀엔디언
+	prevBlockBytes, err := hex.DecodeString(b.PrevBlock) // 16진수 문자열을 []byte로 변환
+	if err != nil {
+		return nil, err
+	}
+	prevBlock := utils.ReverseBytes(prevBlockBytes)        // prevBlock 32바이트 리틀엔디언
+	merkleRootBytes, err := hex.DecodeString(b.MerkleRoot) // 16진수 문자열을 []byte로 변환
+	if err != nil {
+		return nil, err
+	}
+	merkleRoot := utils.ReverseBytes(merkleRootBytes)    // merkleRoot 32바이트 리틀엔디언
+	timestamp := utils.IntToLittleEndian(b.Timestamp, 4) // timestamp 4바이트 리틀엔디언
+	bits := utils.IntToBytes(b.Bits, 4)                  // bits 4바이트 빅엔디언
+	nonce := utils.IntToBytes(b.Nonce, 4)                // nonce 4바이트 빅엔디언
+
+	totalLength := len(version) + len(prevBlock) + len(merkleRoot) + len(timestamp) + len(bits) + len(nonce)
+
+	if totalLength > 80 {
+		return nil, errors.New("The size of block is too big")
+	}
+
+	result = append(result, version...)
+	result = append(result, prevBlock...)
+	result = append(result, merkleRoot...)
+	result = append(result, timestamp...)
+	result = append(result, bits...)
+	result = append(result, nonce...)
+
+	return result, nil
+}
+```
+
+### 연습문제 9.5
+
+Block 구조체의 Hash 메서드를 구현하세요.
+
+```go
+// 블록의 해시를 계산하는 함수
+func (b *Block) Hash() ([]byte, error) {
+	s, err := b.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return utils.ReverseBytes(utils.Hash256(s)), nil
+}
+```
+
+### 9.2.1 블록 버전
+
+블록 버전은 블록을 생성하는 비트코인 소프트웨어 기능의 집합을 나타냅니다. 블록 버전 2는 소프트웨어가 BIP0034에 대한 지원(코인베이스 트랜잭션에 블록 높이를 넣음)을 추가했음을 의미합니다. 블록 버전 3은 BIP0066에 대한 지원(엄격한 DER 인코딩 시행)을 추가했음을 의미합니다. 블록 버전 4는 BIP0065에 대한 지원(OP_CHECKLOCKTIMEVERIFY 사용을 규정)을 추가했음을 의미합니다. 
+
+이런 식으로 버전을 매기는 방식은 블록 버전이 하나씩 올라갈 때마다 소프트웨어의 기능 준비 상황을 하나씩 네트워크에 전파하는 문제가 있습니다. 이러한 문제를 완화하기 위해서 한 번에 서로 다른 기능의 준비 상황이 29개까지 표시되어 전파되는 BIP0009가 제안되었습니다.
+
+BIP0009의 작동 방식은 다음과 같습니다.
+1. 채굴자는 자신의 채굴 소프트웨어가 BIP0009 규정을 따른다는 것을 나타내기 위해 블록 버전 필드 4바이트 중 처음 3비트를 001로 설정합니다.
+2. 나머지 29비트는 어떤 기능이 준비되어 있는지를 나타내기 위해 1비트씩 사용하여 29개의 기능에 대한 준비 상황을 표시합니다.
+
+기능 준비 여부는 비교적 간단하게 확인할 수 있습니다.
+
+```go
+func readBlockVersionBIP9() {
+	rawBlockHeader, _ := hex.DecodeString("020000208ec39428b17323fa0ddec8e887b4a7c53b8c0a0a220cfd0000000000000000005b0750fce0a889502d40508d39576821155e9c9e3f5c3157f961db38fd8b25be1e77a759e93c0118a4ffd71d")
+
+	b, _ := block.Parse(rawBlockHeader)
+
+	fmt.Println("BIP9:", b.Version>>29 == 0x001) // 처음 3비트가 001이면 BIP9 활성화
+	fmt.Println("BIP91:", b.Version>>4&1 == 1)   // 4번째 비트가 1이면 BIP91 활성화
+	fmt.Println("BIP141:", b.Version>>1&1 == 1)  // 2번째 비트가 1이면 BIP141 활성화
+}
+```
+```bash
+$ go run main.go 
+BIP9: true
+BIP91: false
+BIP141: true
+```
+
+### 연습문제 9.6
+
+Block 구조체의 Bip9 메서드를 구현하세요.
+
+```go
+func (b Block) Bip9() bool {
+	return b.Version>>29 == 0x001
+}
+```
+
+### 연습문제 9.7
+
+Block 구조체의 Bip91 메서드를 구현하세요.
+
+```go
+func (b Block) Bip91() bool {
+	return b.Version>>4&1 == 1
+}
+```
+
+### 연습문제 9.8
+
+Block 구조체의 Bip141 메서드를 구현하세요.
+
+```go
+func (b Block) Bip141() bool {
+	return b.Version>>1&1 == 1
+}
+```
+
+### 9.2.2 이전 블록 해시값
+
+모든 블록(제네시스 블록 제외)은 이전 블록의 해시값을 가지고 있습니다. 해시값이 충돌나는 경우는 없으므로 이전 블록의 해시값으로 블록을 특정할 수 있고 블록의 순서를 알 수 있으며 블록을 연결하여 체인을 만들 수 있습니다.
+
+### 9.2.3 머클 루트
+
+머클루트는 블록 내 순서에 따라 나열된 모든 트랜잭션을 32바이트 해시값으로 변환한 값입니다. 머클 트리에 대한 자세한 내용은 11장에서 살펴보겠습니다.
+
+### 9.2.4 타임스탬프
+
+타임스탬프는 유닉스 형식으로 표현된 4바이트 값입니다. 이 값은 두 가지 목적으로 사용됩니다. 첫 번째는 트랜잭션의 록타임과 비교하여 트랜잭션이 활성화되는 시점을 알아내기 위해 사용합니다. 두 번째는 비트값을 재계산하는 데 사용합니다.
+
+### 9.2.5 비트값
+
+비트값은 작업증명과 관련된 필드입니다. 이와 관련해서는 9.3절에서 자세히 살펴봅니다.
+
+### 9.2.6 논스값
+
+논스(Nonce, Number used only ONCE)값은 작업증명을 위해 채굴자가 임의로 지정하는 값입니다. 논스값을 조정하여 블록의 해시값이 특정 조건을 만족하도록 합니다.
+
+---
