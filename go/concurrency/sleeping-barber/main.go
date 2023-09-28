@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 func main() {
@@ -35,21 +37,21 @@ func main() {
 
 			c := NewCustomer(fmt.Sprintf("고객%d", customerId))
 
-			fmt.Printf("%s(이)가 바버샵에 들어갑니다.\n", c)
+			color.Green("%s(이)가 바버샵에 들어갑니다.\n", c)
 
 			err := c.EnterBarberShop(shop)
 			if err != nil {
 				if errors.Is(err, ErrBarberShopClosed) {
-					fmt.Printf("%s(이)가 바버샵에 들어가지 못했습니다. 바버샵이 문을 닫았습니다.\n", c)
+					color.Red("%s(이)가 바버샵에 들어가지 못했습니다. 바버샵이 문을 닫았습니다.\n", c)
 					return
 				} else if errors.Is(err, ErrorCustomerFull) {
-					fmt.Printf("바버샵이 꽉 찼습니다. %s(은)는 집으로 돌아갑니다.\n", c)
+					color.Red("바버샵이 꽉 찼습니다. %s(은)는 집으로 돌아갑니다.\n", c)
 				} else {
-					fmt.Printf("알 수 없는 오류가 발생했습니다. %s(은)는 집으로 돌아갑니다.\n", c)
+					color.Red("알 수 없는 오류가 발생했습니다. %s(은)는 집으로 돌아갑니다.\n", c)
 				}
 			}
 
-			fmt.Printf("%s(이)가 머리를 자르고 집으로 돌아갑니다.\n", c)
+			color.Green("%s(이)가 머리를 자르고 집으로 돌아갑니다.\n", c)
 
 			customerId++
 		}
@@ -57,6 +59,6 @@ func main() {
 
 	wg.Wait()
 
-	fmt.Println("바버샵이 문을 닫았습니다. 모든 이발사가 퇴근했습니다. 다음에 또 오세요.")
+	color.Blue("공지: 모든 이발사가 퇴근했습니다. 바버샵이 문을 닫습니다. 다음에 또 오세요!\n")
 	fmt.Println("==================================================")
 }
