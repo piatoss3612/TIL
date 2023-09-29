@@ -4,89 +4,41 @@ import (
 	"os"
 	"sync"
 	"testing"
-	"time"
 )
 
-func TestSolution1(t *testing.T) {
-	cnt := 10
-	timeAcc := 0
-
-	oldOut := os.Stdout
-
-	r, w, _ := os.Pipe()
-
-	os.Stdout = w
-
-	wg := sync.WaitGroup{}
-	mu := sync.Mutex{}
-
-	for i := 0; i < cnt; i++ {
-		wg.Add(1)
-
-		go func(i int) {
-			defer wg.Done()
-			start := time.Now()
-			solution1()
-			mu.Lock()
-			timeAcc += int(time.Since(start).Milliseconds())
-			mu.Unlock()
-
-			t.Logf("solution1 %d done", i)
-		}(i)
-	}
-
-	wg.Wait()
-
-	_ = w.Close()
-	_ = r.Close()
-
-	os.Stdout = oldOut
-
-	avg := timeAcc / cnt
-
-	avgTime := time.Duration(avg) * time.Millisecond
-
-	t.Logf("avg: %v", avgTime)
+func TestMain(m *testing.M) {
+	main()           // main 함수 실행
+	os.Exit(m.Run()) // 테스트 실행
 }
 
-func TestSolution2(t *testing.T) {
-	cnt := 10
-	timeAcc := 0
+func TestDiningPhilosophers(t *testing.T) {
+	cnt := 1000 // 테스트 횟수
 
-	oldOut := os.Stdout
+	oldOut := os.Stdout // 원래의 표준 출력
 
-	r, w, _ := os.Pipe()
+	_, w, _ := os.Pipe() // 표준 출력을 감추기 위해 파이프를 생성
 
-	os.Stdout = w
+	os.Stdout = w // 표준 출력을 파이프로 변경
 
-	wg := sync.WaitGroup{}
-	mu := sync.Mutex{}
+	wg := sync.WaitGroup{} // 테스트를 goroutine으로 병렬 실행하기 위해 WaitGroup을 사용
+
+	ThinkTime = 0
+	EatTime = 0
+	EtcTime = 0
 
 	for i := 0; i < cnt; i++ {
 		wg.Add(1)
 
-		go func(i int) {
+		go func() {
 			defer wg.Done()
-			start := time.Now()
-			solution2()
-			mu.Lock()
-			timeAcc += int(time.Since(start).Seconds())
-			mu.Unlock()
-
-			t.Logf("solution2 %d done", i)
-		}(i)
+			DiningPhilosophers() // 테스트할 함수 실행
+		}()
 	}
 
-	wg.Wait()
+	wg.Wait() // 모든 테스트가 끝날 때까지 대기
 
+	// 표준 출력을 원래대로 복구
 	_ = w.Close()
-	_ = r.Close()
 
 	os.Stdout = oldOut
-
-	avg := timeAcc / cnt
-
-	avgTime := time.Duration(avg) * time.Second
-
-	t.Logf("avg: %v", avgTime)
 }
