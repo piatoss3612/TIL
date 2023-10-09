@@ -169,3 +169,152 @@ func TestAdd(t *testing.T) {
 ```
 
 ---
+
+## 2.2 고급 언어 요소
+
+### 2.2.1 일급 객체인 코드 문서화
+
+- Go는 코드 문서화를 위한 표준 도구인 `godoc`을 제공한다. `godoc`은 코드를 문서화하는 데 사용되는 주석을 읽고, HTML 페이지를 생성하고, 웹 서버를 시작한다.
+
+#### 규칙
+
+1. 패키지 수준의 설명은 항목 맨 위에 `Package <name>` 접두어를 사용하여 시작한다. 파일이 많은 경우 `doc.go` 파일을 사용하여 패키지에 대한 설명을 작성한다.
+2. 모든 공용 구문은 구문의 이름으로 시작하여, 완전한 문장의 해설을 제공한다.
+3. 알려진 버그는 `// BUG(<name>): <description>` 형식으로 작성한다.
+4. 비공개 생성자는 주석을 달 수는 있지만, 문서에는 노출되지 않는다.
+5. test 파일에 `Example` 함수를 작성하여 예제를 문서화할 수 있다.
+6. 예제에 대한 설명은 `// Output: <description>` 형식으로 작성한다.
+
+### 2.2.2 하위 호환성 및 이식성
+
+- Go는 이전 버전과의 하위 호환성을 보장한다.
+- 그러나 효율성이 호환되는지는 보장되지 않는다.
+- Go는 다양한 플랫폼에서 실행되는 이식성이 뛰어난 언어이다. 다만 이식성과 관련해서는 런타임을 먼저 살펴봐야 한다.
+
+### 2.2.3 Go 런타임
+
+- Go는 가상머신을 사용하지 않고, Go 코드와 사용된 라이브러리들은 컴파일 타임에 기계어로 완전히 컴파일된다.
+- 그런데 프로그램이 실행될 때 백그라운드에서 Go 런타임이 동시에 실행된다. Go 런타임은 다음과 같은 기능을 제공한다.
+    1. 메모리 관리
+    2. 가비지 컬렉션
+    3. 스레드 관리
+    4. 네트워킹
+    5. 스케줄링
+    6. 맵 및 슬라이스의 내부 구현
+    7. 타입 정보
+    8. 링크 및 로드
+
+### 2.2.4 객체 지향 프로그래밍
+
+- Go는 클래스가 없지만 구조체를 사용하여 객체 지향 프로그래밍을 지원한다.
+- 구조체 임베딩을 통해 상속과 유사한 기능을 구현할 수 있다.
+- 블로그에 정리한 내용이라 생략
+
+### 2.2.5 제너릭
+
+- Go는 1.18 버전부터 제너릭을 지원한다.
+- 제너릭? 매개변수 다형성을 제공하는 프로그래밍 기법
+- 제너릭이 사용가능하다는 것은 동일한 작업을 수행하는 두 가지 방법이 있다는 것을 의미
+
+#### 기본 타입들에 대한 제너릭 정렬 구현
+
+```go
+package main
+
+import (
+	"fmt"
+	"sort"
+
+	"golang.org/x/exp/constraints"
+)
+
+type genericSortableBasic[T constraints.Ordered] []T
+
+func (s genericSortableBasic[T]) Len() int {
+	return len(s)
+}
+
+func (s genericSortableBasic[T]) Less(i, j int) bool {
+	return s[i] < s[j]
+}
+
+func (s genericSortableBasic[T]) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func Example() {
+	toSort := []int{20, 10, 1, -20}
+	sort.Ints(toSort)
+
+	toSort2 := []float64{20.0, 10.0, 1.0, -20.0}
+	sort.Sort(genericSortableBasic[float64](toSort2))
+}
+```
+
+#### 특정 타입의 객체에 대한 제너릭 정렬 구현
+
+```go
+package main
+
+import (
+	"sort"
+)
+
+type Comparable[T any] interface {
+	Compare(T) int
+}
+
+type genericSortable[T Comparable[T]] []T
+
+func (s genericSortable[T]) Len() int {
+	return len(s)
+}
+
+func (s genericSortable[T]) Less(i, j int) bool {
+	return s[i].Compare(s[j]) > 0
+}
+
+func (s genericSortable[T]) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func genericSort[T Comparable[T]](s []T) {
+	sort.Sort(genericSortable[T](s))
+}
+
+type block struct {
+	// ...
+}
+
+func (b block) Compare(other block) int {
+	return 0
+}
+
+func Example() {
+	toSort := []block{ /* ... */ }
+	sort.Sort(genericSortable[block](toSort))
+
+	// or
+
+	genericSort[block](toSort)
+}
+```
+
+#### 오버헤드
+
+- C 언어처럼 구현을 하지 않아 개발자의 작업 속도를 더디게 한다.
+- 사용될 각 타입에 대한 코드를 복사하는 단형성화(monomorphization)라는 프로세스를 사용하여 컴파일 시간과 바이너리 크기를 증가시킨다.
+- 자바의 인터페이스처럼 박싱(boxing)을 사용할 수 있지만 실행 시간이나 메모리 사용량이 증가한다.
+
+> 제너릭은 코드 유지가 더 복잡해지기 때문에 꼭 필요한 경우에만 사용해야 한다.
+
+> Go는 단형성화와 박싱의 중간에서 딕셔너리와 스텐실링 알고리즘을 사용한다.
+
+---
+
+## 2.3 Go는 정말 빠를까?
+
+- 언어들 사이에 실행 시간과 메모리 사용량을 비교하는 원시적이고 반최적화된 짧은 프로그램으로 벤치마킹을 수행하는 것은 효율성을 위한 프로그래밍의 복잡성 등 실질적인 측면을 효과적으로 보여주지 못한다
+- 효율성 측면에서 Go에도 단점이 있다. 메모리 사용량을 제어하기 어려울 수 있다. -> 메모리 또는 CPU 효율성을 보장하기 위한 노력이 필요하다.
+- 가비지 컬렉션을 사용하지 않는 언어로 러스트가 있지만 코드를 작성하는 데 더 많은 노력이 필요하다. -> Go의 가비지 컬렉션 성능을 제어하면서도, 소프트웨어를 간결하고 효율적으로 개발하는 방법을 3장에서 알아보자.
+
