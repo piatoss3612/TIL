@@ -244,4 +244,182 @@ assert_eq!(r + &1009, 1729); // 1009를 보관하기 위해 생성된 임시변�
 
 이렇게 추가 정보를 가진다는 것을 제외하면 슬라이스 레퍼런스와 트레이트 객체는 일반적인 레퍼런스와 비슷하다.
 
+---
 
+## 레퍼런스 안전성
+
+### 수명
+
+- 러스트는 프로그램에 있는 모든 레퍼런스 타입을 대상으로 **수명**을 부여한다.
+- 수명이란 레퍼런스가 유효한 구간을 의미한다. 수명은 컴파일 시점에만 존재하는 가상의 개념이다.
+- 레퍼런스의 수명은 레퍼런스가 가리키는 대상의 수명과 같거나 더 짧아야 한다.
+
+### 함수 인수로 레퍼런스를 전달하기
+
+#### 레퍼런스를 인수로 받는 함수
+
+```rust
+static mut STASH: &i32; // 전역 변수 STASH
+fn f(p: &i32) {
+    STASH = p; // STASH에 p의 레퍼런스를 저장
+}
+```
+
+#### 위 코드의 문제점
+
+- 모든 static 변수는 초기화가 되어야 한다.
+- `f` 함수는 `p`의 레퍼런스를 `STASH`에 저장한다. 이는 `p`의 수명이 `STASH`의 수명보다 길어야 한다는 것을 의미한다.
+- 변경할 수 있는 static은 스레드 안전하지 않다. 따라서 unsafe 블록 안에서만 사용할 수 있다.
+
+#### 수정된 코드
+
+```rust
+static mut STASH: &i32 = &128;
+fn f(p: &'static i32) {
+    unsafe {
+        STASH = p;
+    }
+}
+```
+
+- `p`의 수명을 `'static`으로 지정했다. 이는 `p`의 수명이 `'static`과 같거나 더 길어야 한다는 것을 의미한다.
+
+```rust
+#[test]
+fn test_static_lifetime() {
+    static WORTH_POINTING_AT: i32 = 1000;
+    f(&WORTH_POINTING_AT);
+
+    // let x = 10;
+    // f(&x);
+}
+```
+
+- `f`는 수명이 `'static`인 레퍼런스만 받을 수 있다. 따라서 `WORTH_POINTING_AT`의 레퍼런스를 전달할 수 있다.
+- `x`는 수명이 `'static`이 아니므로 `f`에 전달할 수 없다.
+
+> 함수 시그니처는 본문의 행동을 드러낸다. 이는 함수 호출의 안전성을 보장하는 데 중요한 역할을 한다.
+
+### 레퍼런스 반환하기
+
+- 러스트는 함수의 인수가 하나 뿐이고 인수와 반환값의 타입이 모두 레퍼런스일 때, 이 둘의 수명이 같다고 가정한다.
+
+### 레퍼런스를 갖는 스트럭트
+
+```rust
+#[test]
+fn test_static_field_lifetime() {
+    struct S {
+        r: &'static i32,
+    }
+
+    let s;
+    {
+        static X: i32 = 10;
+        s = S { r: &X };
+    }
+
+    assert_eq!(*s.r, 10);
+
+    struct S2<'a> {
+        r: &'a i32,
+    }
+
+    struct D {
+        s: S2<'static>,
+    }
+
+    struct D2<'a> {
+        s: S2<'a>,
+    }
+}
+```
+
+### 고유한 수명 매개 변수
+
+```rust
+#[test]
+fn test_unique_lifetime() {
+    // struct S<'a> {
+    //     x: &'a i32,
+    //     y: &'a i32,
+    // }
+
+    // let x = 10;
+    // let r;
+    // {
+    //     let y = 20;
+    //     {
+    //         let s = S { x: &x, y: &y }; // s의 x와 y의 수명이 동일해야 하는데 다름
+    //         r = s.x;
+    //     }
+    // }
+
+    // println!("{}", r);
+
+    struct S<'a, 'b> {
+        x: &'a i32,
+        y: &'b i32,
+    }
+
+    let x = 10;
+    let r;
+    {
+        let y = 20;
+        {
+            let s: S<'_, '_> = S { x: &x, y: &y }; // s의 x와 y의 수명이 달라도 됨
+            r = s.x;
+        }
+    }
+
+    println!("{}", r);
+}
+```
+
+### 수명 매개변수 생략하기
+
+- 코드가 아주 단순할 때는 수명 매개변수를 생략할 수 있다.
+- 함수가 어떤 타입의 메서드이면서 self 매개변수를 레퍼런스로 받는다면, self의 수명이 반환값에 배정된다.
+
+```rust
+struct StringTable {
+    elements: Vec<String>,
+}
+
+impl StringTable {
+    fn find_by_prefix(&self, prefix: &str) -> Option<&String> {
+        for i in 0..self.elements.len() {
+            if self.elements[i].starts_with(prefix) {
+                return Some(&self.elements[i]);
+            }
+        }
+        None
+    }
+
+    fn find_by_prefix2<'a, 'b>(&'a self, prefix: &'b str) -> Option<&'a String> {
+        for i in 0..self.elements.len() {
+            if self.elements[i].starts_with(prefix) {
+                return Some(&self.elements[i]);
+            }
+        }
+        None
+    }
+}
+```
+
+---
+
+## 공유 vs 변경
+
+- 공유된 레퍼런스는 살아 있는 동안 참조 대상을 읽기 전용으로 설정해 두므로 참조 대상에 배정하거나 해당 값을 다른 곳으로 옮길 수 없다.
+
+### 공유에 관한 규칙
+
+- 공유된 접근은 읽기 전용 접근이다
+- 변경할 수 있는 접근은 배타적인 접근이다
+
+> 이러한 규칙으로 인해 unsafe를 사용하지 않는 동시적 러스트 프로그램은 구조적으로 데이터 경합(race condition)이 발생하지 않는다.
+
+### 객체의 바다와 맞서기
+
+- 러스트는 가비지 컬렉션을 사용하는 프로그램이 서로가 서로에게 의존하는 것과 달리, 포인터, 소유권, 데이터 흐름이 시스템 전반에서 한 방향으로 흐르는 것을 선호한다. (Rc같은 스마트 포인터 타입을 사용하지 않는한)
