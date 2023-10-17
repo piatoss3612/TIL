@@ -9,20 +9,6 @@
       "candid": "src/subscriber/subscriber.did",
       "package": "subscriber",
       "type": "rust"
-    },
-    "pubsub_frontend": {
-      "dependencies": [
-        "publisher",
-        "subscriber"
-      ],
-      "frontend": {
-        "entrypoint": "src/pubsub_frontend/src/index.html"
-      },
-      "source": [
-        "src/pubsub_frontend/assets",
-        "dist/pubsub_frontend/"
-      ],
-      "type": "assets"
     }
   },
   "defaults": {
