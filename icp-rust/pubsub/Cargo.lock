@@ -751,7 +751,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pubsub_backend"
+name = "publisher"
 version = "0.1.0"
 dependencies = [
  "candid",
@@ -949,6 +949,15 @@ dependencies = [
  "parking_lot",
  "phf_shared",
  "precomputed-hash",
+]
+
+[[package]]
+name = "subscriber"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "ic-cdk",
+ "ic-cdk-timers",
 ]
 
 [[package]]

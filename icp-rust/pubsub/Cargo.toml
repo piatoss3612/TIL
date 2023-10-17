@@ -1,4 +1,2 @@
 [workspace]
-members = [
-    "src/pubsub_backend",
-]
+members = ["src/publisher", "src/subscriber"]
