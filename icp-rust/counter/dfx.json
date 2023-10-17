@@ -1,0 +1,30 @@
+{
+  "canisters": {
+    "counter": {
+      "candid": "src/counter/counter.did",
+      "package": "counter",
+      "type": "rust"
+    },
+    "counter_frontend": {
+      "dependencies": [
+        "counter"
+      ],
+      "frontend": {
+        "entrypoint": "src/counter_frontend/src/index.html"
+      },
+      "source": [
+        "src/counter_frontend/assets",
+        "dist/counter_frontend/"
+      ],
+      "type": "assets"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
