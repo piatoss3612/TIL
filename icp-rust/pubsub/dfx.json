@@ -1,0 +1,30 @@
+{
+  "canisters": {
+    "pubsub_backend": {
+      "candid": "src/pubsub_backend/pubsub_backend.did",
+      "package": "pubsub_backend",
+      "type": "rust"
+    },
+    "pubsub_frontend": {
+      "dependencies": [
+        "pubsub_backend"
+      ],
+      "frontend": {
+        "entrypoint": "src/pubsub_frontend/src/index.html"
+      },
+      "source": [
+        "src/pubsub_frontend/assets",
+        "dist/pubsub_frontend/"
+      ],
+      "type": "assets"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
