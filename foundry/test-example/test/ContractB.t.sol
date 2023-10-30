@@ -22,3 +22,27 @@ contract ContractBTest is Test {
         testNumber -= 43;
     }
 }
+
+abstract contract HelperContract {
+    uint256 testNumber;
+}
+
+contract MyContractTest is Test, HelperContract {
+    function setUp() public {
+        testNumber = 42;
+    }
+
+    function test_NumberIs42() public {
+        assertEq(testNumber, 42);
+    }
+}
+
+contract MyOtherContractTest is Test, HelperContract {
+    function setUp() public {
+        testNumber = 43;
+    }
+
+    function test_NumberIs43() public {
+        assertEq(testNumber, 43);
+    }
+}
