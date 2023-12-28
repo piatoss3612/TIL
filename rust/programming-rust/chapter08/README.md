@@ -181,7 +181,7 @@ edition = "2021"
 
 - `Cargo.toml` 파일은 전혀 수정할 필요가 없다. `cargo build`는 기본적으로 파일을 보고 무엇을 빌드할지 결정한다. (src/main.rs가 있으면 바이너리, src/lib.rs가 있으면 라이브러리)
 
-### src/bin 디렉토리
+## src/bin 디렉토리
 
 - 프로그램을 라이브러리와 같은 크레이트 안에 넣을 경우, `src/bin` 디렉토리에 실행 파일을 넣을 수 있다.
 
@@ -217,7 +217,7 @@ final fern size: 2.7169239322355985
 
 - 이처럼 라이브러리와 실행 파일을 같은 크레이트에 넣을 수 있다.
 
-### 어트리뷰트
+## 어트리뷰트
 
 - 어트리뷰트는 컴파일러에게 추가적인 정보를 제공하는 방법이다.
 - 어트리뷰트는 `#` 기호로 시작한다.
@@ -233,3 +233,173 @@ pub struct my_type {
 - `#[cfg]` 어트리뷰트를 사용하여 조건부 컴파일을 할 수 있다.
 - `#[inline]` 어트리뷰트를 사용하여 인라인 함수를 만들 수 있다.
 - 일부 어트리뷰트는 전체 크레이트에 적용되며, `#![cfg]`와 같이 `!` 기호를 사용한다.
+
+## 테스트와 문서화
+
+- `cargo test`는 프로젝트 안의 모든 테스트를 실행한다.
+- 특정 테스트만 실행하려면 `cargo test <test_name>` 명령을 사용한다.
+- 테스트는 주로 `assert!`, `assert_eq!` 매크로를 사용하여 작성한다.
+    - `assert!(expr)`은 `expr`이 참이면 통과하고, 거짓이면 실패한다.
+    - `assert_eq!(left, right)`은 `left`와 `right`가 같으면 통과하고, 다르면 실패한다.
+- `assert!`와 `assert_eq!`은 일반 코드에서도 불변성을 검증하는 데 사용할 수 있지만, 릴리즈 빌드에도 포함이 되므로, 성능에 영향을 줄 수 있다. 따라서 `debug_assert!`와 `debug_assert_eq!`를 사용하여 릴리즈 빌드에는 포함되지 않도록 하는 것이 좋다.
+- 오류 상황을 테스트하려면 해당 테스트에 `should_panic` 어트리뷰트를 추가한다. (컴파일러가 패닉을 무시하도록 allow(unconditional_panic) 어트리뷰트를 추가해야 한다.)
+
+```rust
+#[test]
+#[allow(unconditional_panic, unused_must_use)]
+#[should_panic(expected = "divide by zero")]
+fn test_divide_by_zero() {
+    1 / 0;
+}
+```
+
+- 테스트는 `Result<(), E>` 타입을 반환할 수 있다.
+
+```rust
+use std::num::ParseIntError;
+
+#[test]
+fn main() -> Result<(), ParseIntError> {
+    i32::from_str_radix("1024", 10)?;
+    Ok(())
+}
+```
+
+- 테스트 모듈은 `#[cfg(test)]` 어트리뷰트를 사용하여 테스트 빌드에만 포함되도록 할 수 있다.
+
+```rust
+#[cfg(test)]
+mod tests {
+    fn roughly_equal(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-6
+    }
+
+    #[test]
+    fn trig_works() {
+        use std::f64::consts::PI;
+        assert!(roughly_equal(PI.sin(), 0.0));
+    }
+}
+```
+
+- 러스트는 멀티 스레드 테스트를 지원한다. 이를 비활성화하려면 `cargo test -- --test-threads=1` 명령을 사용한다.
+
+### 통합 테스트
+
+- `src` 디렉토리와 나란히 존재하는 `tests` 디렉토리에 통합 테스트를 작성할 수 있다.
+- `cargo test`를 실행하면 cargo는 각 통합 테스트를 개별적으로 컴파일한 다음, 라이브러리와 러스트 테스트 도구를 링크하여 독립된 크레이트로 만든다.
+
+### 문서화
+
+- 러스트는 문서화를 위한 도구를 제공한다. `cargo doc` 명령을 사용하여 문서를 생성할 수 있다.
+
+```bash
+$ cargo doc --no-deps --open
+```
+
+- `--no-deps` 옵션은 의존성 라이브러리의 문서를 생성하지 않도록 한다.
+- `--open` 옵션은 문서를 생성한 후 웹 브라우저로 열어준다.
+
+- 러스트는 `///`로 시작하는 주석을 문서화 주석(documentation comment)으로 취급한다.
+- 마찬가지로 `//!`로 시작하는 주석은 모듈이나 크레이트의 문서화 주석으로 취급한다.
+- 러스트 주석은 마크다운 문법을 사용할 수 있다. 그 중에서도 특이한 것은 `leaves::Leaf`와 같이 러스트 아이템 경로를 사용할 수 있다는 점이다.
+- 또한 검색을 위해 `#[doc(keyword = "foo")]`와 같이 별칭을 지정할 수 있다.
+- 외부 파일의 내용을 문서화 주석에 포함시키려면 `include_str!` 매크로를 사용한다. (ex. #![doc = include_str!("../README.md")])
+- 텍스트 중간에 코드를 삽입하려면 ` ```rust`와 같이 코드 블록을 사용한다.
+
+### 독 테스트
+
+- 러스트는 문서화 주석에서 코드를 가져와 테스트를 만들 수 있다. 이를 독 테스트(doc test)라고 한다.
+
+```rust
+use std::ops::Range;
+
+/// 두 범위가 겹치면 true를 반환한다.
+///
+///     assert_eq!(fern_sim::ranges::overlap(0..7, 3..10), true);
+///     assert_eq!(fern_sim::ranges::overlap(1..5, 101..105), false);
+///
+/// 두 범위 중 하나라도 비어 있으면 겹치지 않는다고 판단한다.
+///
+///     assert_eq!(fern_sim::ranges::overlap(0..0, 0..10), false);
+///
+pub fn overlap(r1: Range<usize>, r2: Range<usize>) -> bool {
+    r1.start < r1.end && r2.start < r2.end && r1.start < r2.end && r2.start < r1.end
+}
+```
+
+```bash
+$ cargo test --doc
+   Compiling fern-sim v0.1.0 (/home/piatoss/TIL/rust/programming-rust/chapter08/example)
+    Finished test [unoptimized + debuginfo] target(s) in 0.04s
+   Doc-tests fern-sim
+
+running 2 tests
+test src/ranges.rs - ranges::overlap (line 10) ... ok
+test src/ranges.rs - ranges::overlap (line 5) ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+```
+
+- 코드 블록의 첫 줄에 `#` 기호를 추가하면 해당 코드 블록은 컴파일되지 않는다.
+- `no_run` 어노테이션을 사용하면 코드 블록은 컴파일되지만 실행되지는 않는다.
+- `ignore` 어노테이션을 사용하면 해당 테스트는 무시된다.
+
+## 의존성 지정하기
+
+* 바로 버전을 지정하는 방법
+
+```toml
+[dependencies]
+image = "0.6.1"
+```
+
+* `crate.io`에 게시되지 않은 크레이트를 사용하는 법 (git 저장소 - `rev`, `branch`, `tag` 지정 가능)
+
+```toml
+[dependencies]
+image = { git = "", rev = "" }
+```
+
+* 디렉토리에 있는 크레이트를 사용하는 법
+
+```toml
+[dependencies]
+image = { path = "vendor/image" }
+```
+
+### 버전
+
+- 호환성 규칙은 **유의적 버전 관리(SemVer)**에 따른다.
+    - 0.0 버전은 초기 개발 단계를 의미하며 다른 어떤 버전과도 호환되지 않는다.
+    - 0.x 버전은 0.x 시리즈의 모든 버전과 호환되지만, 0.y 버전과는 호환되지 않는다.
+    - 1.0 버전부터는 주 버전이 새로 나올 경우에만 호환성이 깨진다. 따라서 버전 2.x를 요구하는 크레이트는 1.x와 호환되지 않는다.
+
+### Cargo.lock
+
+- `Cargo.lock` 파일은 의존성 그래프를 고정시킨다. 즉, `Cargo.toml` 파일에 버전을 명시하지 않아도 `Cargo.lock` 파일에 명시된 버전을 사용한다.
+- `Cargo.lock` 파일은 `Cargo.toml` 파일에 직접 버전을 변경하거나, `cargo update` 명령을 사용하여 갱신할 수 있다.
+
+## crates.io에 크레이트 게시하기
+
+* `cargo package` 명령을 사용하여 크레이트를 패키지로 만들 수 있다.
+    - `cargo package --list` 명령을 사용하여 패키지에 포함된 파일을 확인할 수 있다.
+    - `Cargo.toml` 파일에 `[package]` 섹션을 추가하여 패키지의 메타데이터를 지정해야 한다.
+
+* 패키지를 게시하려면 `cargo login` 명령을 사용하여 crates.io에 로그인해야 한다.
+* `cargo publish` 명령을 사용하여 패키지를 게시할 수 있다.
+
+## 워크스페이스
+
+- 워크스페이스는 여러 크레이트를 하나의 프로젝트로 묶는 방법이다.
+- 워크스페이스는 `Cargo.toml` 파일에 `[workspace]` 섹션을 추가하여 지정한다.
+
+```toml
+[workspace]
+members = [
+    "fern-sim",
+    "fern-sim-cli",
+]
+```
+
+- 이렇게 하면 각 크레이트에 `target` 디렉토리가 생기지 않고, 워크스페이스의 `target` 디렉토리에 생성된다.
