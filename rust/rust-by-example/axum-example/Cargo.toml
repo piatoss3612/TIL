@@ -1,0 +1,18 @@
+[package]
+name = "axum-example"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.32.0", features = ["full"] }                  # async runtime
+anyhow = "1.0.75"                                                    # error handling
+dotenv = "0.15.0"                                                    # for loading .env files
+serde = { version = "1.0.188", features = ["derive"] }               # serialization
+sqlx = { version = "0.7.2", features = ["runtime-tokio", "sqlite"] } # database
+axum = "0.7"                                                         # web framework
+once_cell = "1.18.0"                                                 # for lazy statics
+
+[dev-dependencies]
+axum-test-helper = "0.3.0" # for testing
